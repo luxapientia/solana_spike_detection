@@ -21,6 +21,9 @@ export interface TokenState {
   baseTokenSymbol: string;
   baseTokenName: string;
   pairAddress: string;
+  source: 'pumpfun' | 'bonk' | null; // Token source per requirements
+  createdAt?: number; // Token creation timestamp
+  firstSeen: number; // First seen timestamp
   snapshots: TokenSnapshot[];
   lastAlertTimestamp: {
     tier25?: number;
@@ -51,7 +54,8 @@ export class TokenStateManager {
   updateTokenState(
     tokenAddress: string,
     pair: TokenPair,
-    snapshot: TokenSnapshot
+    snapshot: TokenSnapshot,
+    source?: 'pumpfun' | 'bonk' | null
   ): void {
     let state = this.tokens.get(tokenAddress);
 
@@ -61,12 +65,20 @@ export class TokenStateManager {
         baseTokenSymbol: pair.baseToken.symbol,
         baseTokenName: pair.baseToken.name,
         pairAddress: pair.pairAddress,
+        source: source || null,
+        createdAt: pair.pairCreatedAt,
+        firstSeen: Date.now(),
         snapshots: [],
         lastAlertTimestamp: {},
         lastSeenActive: Date.now(),
         currentPair: pair,
       };
       this.tokens.set(tokenAddress, state);
+    } else {
+      // Update source if not set
+      if (!state.source && source) {
+        state.source = source;
+      }
     }
 
     // Update current pair
@@ -101,7 +113,11 @@ export class TokenStateManager {
   }
 
   /**
-   * Check if token has been in dormant state
+   * Check if token has been in dormant state (per requirements section 7.2)
+   * Requirements:
+   * - 1h volume < $500
+   * - 1h price change < ±5%
+   * - No 5m candle > +10%
    */
   isDormant(
     tokenAddress: string,
@@ -116,34 +132,37 @@ export class TokenStateManager {
       return false;
     }
 
-    // Calculate price volatility (max - min price change)
-    const prices = snapshots.map((s) => s.price);
-    const minPrice = Math.min(...prices);
-    const maxPrice = Math.max(...prices);
-    const avgPrice = prices.reduce((a, b) => a + b, 0) / prices.length;
-    const volatility = avgPrice > 0 ? ((maxPrice - minPrice) / avgPrice) * 100 : 0;
+    // Requirement 1: 1h volume < $500
+    const totalVolume1h = snapshots.reduce((sum, s) => sum + s.volume5m, 0);
+    if (totalVolume1h >= volumeThreshold) {
+      return false;
+    }
 
-    // Calculate total volume
-    const totalVolume = snapshots.reduce((sum, s) => sum + s.volume5m, 0);
-
-    // Calculate market cap change
-    const marketCapChange = snapshots.length > 1
-      ? Math.abs(snapshots[snapshots.length - 1].marketCap - snapshots[0].marketCap)
+    // Requirement 2: 1h price change < ±5%
+    const firstPrice = snapshots[0].price;
+    const lastPrice = snapshots[snapshots.length - 1].price;
+    const priceChange1h = firstPrice > 0 
+      ? Math.abs((lastPrice - firstPrice) / firstPrice) * 100 
       : 0;
-    const avgMarketCap = snapshots.reduce((sum, s) => sum + s.marketCap, 0) / snapshots.length;
-    const marketCapVolatility = avgMarketCap > 0
-      ? (marketCapChange / avgMarketCap) * 100
-      : 0;
+    if (priceChange1h >= volatilityThreshold) {
+      return false;
+    }
 
-    // Token is dormant if:
-    // 1. Low price volatility
-    // 2. Low volume
-    // 3. Low market cap change
-    return (
-      volatility <= volatilityThreshold &&
-      totalVolume <= volumeThreshold &&
-      marketCapVolatility <= volatilityThreshold
-    );
+    // Requirement 3: No 5m candle > +10%
+    for (let i = 1; i < snapshots.length; i++) {
+      const prevPrice = snapshots[i - 1].price;
+      const currPrice = snapshots[i].price;
+      const priceChange5m = prevPrice > 0 
+        ? ((currPrice - prevPrice) / prevPrice) * 100 
+        : 0;
+      
+      if (priceChange5m > 10) {
+        return false; // Found a 5m candle > +10%
+      }
+    }
+
+    // All requirements met - token is dormant
+    return true;
   }
 
   /**

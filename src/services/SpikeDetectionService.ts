@@ -32,7 +32,7 @@ export class SpikeDetectionService {
     this.dexScreenerService = new DexScreenerService();
     this.tokenUniverseManager = new TokenUniverseManager(this.dexScreenerService);
     this.tokenStateManager = new TokenStateManager();
-    this.spikeDetector = new SpikeDetector(this.tokenStateManager);
+    this.spikeDetector = new SpikeDetector(this.tokenStateManager, this.dexScreenerService);
     this.telegramBot = telegramBot;
     this.config = Config.getInstance();
     

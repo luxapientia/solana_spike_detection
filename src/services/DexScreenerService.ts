@@ -153,19 +153,32 @@ export class DexScreenerService {
   }
 
   /**
-   * Check if a token is from Pump, Bonk, or Bags launchpad
-   * Uses baseToken information to identify launchpad tokens
+   * Check if a token is from Pump.fun or BONK launchpad (hard restriction)
    * @param pair - Token pair to check
-   * @returns True if token is from Pump, Bonk, or Bags
+   * @returns 'pumpfun' | 'bonk' | null
    */
-  isFromPumpOrBonk(pair: TokenPair): boolean {
+  getTokenSource(pair: TokenPair): 'pumpfun' | 'bonk' | null {
     // Check dexId for launchpad identifiers
     const dexId = (pair.dexId || '').toLowerCase();
-    if (dexId.includes('pump') || dexId.includes('bonk') || dexId.includes('bags')) {
-      return true;
+    
+    if (dexId.includes('pump')) {
+      return 'pumpfun';
     }
     
-    return false;
+    if (dexId.includes('bonk')) {
+      return 'bonk';
+    }
+    
+    return null;
+  }
+
+  /**
+   * Check if a token is from Pump.fun or BONK launchpad
+   * @param pair - Token pair to check
+   * @returns True if token is from Pump.fun or BONK
+   */
+  isFromPumpOrBonk(pair: TokenPair): boolean {
+    return this.getTokenSource(pair) !== null;
   }
 
   /**

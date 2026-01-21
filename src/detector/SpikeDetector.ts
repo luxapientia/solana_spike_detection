@@ -3,7 +3,7 @@
  * Detects price spikes and validates quiet-to-breakout transitions
  */
 
-import { TokenPair } from '../services/DexScreenerService';
+import { TokenPair, DexScreenerService } from '../services/DexScreenerService';
 import { TokenStateManager, TokenSnapshot } from '../data/TokenState';
 import { Config } from '../utils/Config';
 
@@ -12,6 +12,8 @@ export interface SpikeAlert {
   baseTokenSymbol: string;
   baseTokenName: string;
   pair: TokenPair;
+  source: 'pumpfun' | 'bonk';
+  tokenAgeHours: number;
   priceChange5m: number;
   tier: 'tier25' | 'tier50';
   currentPrice: number;
@@ -24,10 +26,12 @@ export interface SpikeAlert {
 export class SpikeDetector {
   private tokenStateManager: TokenStateManager;
   private config: Config;
+  private dexScreenerService: DexScreenerService;
 
-  constructor(tokenStateManager: TokenStateManager) {
+  constructor(tokenStateManager: TokenStateManager, dexScreenerService: DexScreenerService) {
     this.tokenStateManager = tokenStateManager;
     this.config = Config.getInstance();
+    this.dexScreenerService = dexScreenerService;
   }
 
   /**
@@ -35,6 +39,12 @@ export class SpikeDetector {
    */
   checkForSpike(pair: TokenPair): SpikeAlert | null {
     const tokenAddress = pair.baseToken.address;
+
+    // Get token source first (hard restriction: only Pump.fun or BONK)
+    const source = this.dexScreenerService.getTokenSource(pair);
+    if (!source) {
+      return null; // Token must be from Pump.fun or BONK
+    }
 
     // Create snapshot from current pair data
     const snapshot: TokenSnapshot = {
@@ -48,8 +58,8 @@ export class SpikeDetector {
       priceChange24h: pair.priceChange?.['h24'] || 0,
     };
 
-    // Update token state
-    this.tokenStateManager.updateTokenState(tokenAddress, pair, snapshot);
+    // Update token state with source
+    this.tokenStateManager.updateTokenState(tokenAddress, pair, snapshot, source);
 
     // Check if token meets criteria
     if (!this.meetsBasicCriteria(pair)) {
@@ -97,12 +107,19 @@ export class SpikeDetector {
     // Record alert timestamp
     this.tokenStateManager.recordAlert(tokenAddress, tier);
 
+    // Calculate token age
+    const tokenAgeHours = pair.pairCreatedAt 
+      ? (Date.now() - pair.pairCreatedAt) / (1000 * 60 * 60)
+      : 0;
+
     // Create spike alert
     const alert: SpikeAlert = {
       tokenAddress,
       baseTokenSymbol: pair.baseToken.symbol,
       baseTokenName: pair.baseToken.name,
       pair,
+      source,
+      tokenAgeHours,
       priceChange5m,
       tier,
       currentPrice: snapshot.price,
@@ -131,10 +148,11 @@ export class SpikeDetector {
       return false;
     }
 
-    // Check if pair has liquidity
+    // Spam control: Ignore tokens with liquidity < $2,000 (per requirements section 11)
+    // This is a safety check - tokens with 0 liquidity should already be filtered during discovery
     const liquidity = pair.liquidity?.usd || 0;
-    if (liquidity === 0) {
-      return false;
+    if (liquidity < this.config.minLiquidityUsd) {
+      return false; // Tokens with 0 liquidity or < $2k are ignored
     }
 
     return true;

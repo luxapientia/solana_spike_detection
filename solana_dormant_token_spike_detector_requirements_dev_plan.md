@@ -1,221 +1,284 @@
-# Solana Dormant Token Spike Detector (Telegram Bot)
+📘 Project Requirements
 
-## 1. Project Purpose
+Solana Pump.fun & BONK Dead-Coin Spike Alert Bot
 
-The purpose of this project is to build a **Telegram bot** that automatically detects **sudden price breakouts in dormant, low-market-cap Solana tokens** and notifies the user in near real time.
+1. Project Overview
 
-The bot focuses on tokens that have shown **little to no activity for a period of time** and then suddenly experience a **+25% or +50% price increase within 5 minutes**. These early breakouts are difficult to spot manually due to the large number of Solana tokens.
+Build a Telegram alert bot that continuously monitors Solana tokens originating only from Pump.fun (“pump bags”) and BONK launchpads, detects sudden price spikes (+25% or more in 5 minutes) in previously inactive tokens, and sends real-time alerts.
 
-This project is **not a trading bot**. It is a **signal discovery and monitoring tool** designed to surface early momentum opportunities for further analysis or manual trading.
+The system is designed for signal discovery, not trading automation.
 
----
+2. Scope & Non-Goals
+In Scope
 
-## 2. Project Scope
+Token discovery & registry
 
-- **Blockchain**: Solana only
-- **Token standard**: SPL tokens
-- **Launchpads monitored**:
-  - Pump
-  - Bonk
-- **Data source**: DexScreener API (via `dexscreener-sdk`)
-- **Alert delivery**: Telegram
+Token age filtering
 
----
+Inactivity (dead/bag) detection
 
-## 3. Functional Requirements
+Real-time price & volume monitoring
 
-### 3.1 Token Universe Filtering
+Spike detection
 
-The bot must continuously scan tokens that meet all of the following conditions:
+Telegram alerting
 
-- Token launched via **Pump or Bonk** launchpads
-- Market capitalization **below $100,000**
-- Token age **greater than or equal to a configurable minimum age**
-  - Default: **1 hour**
-  - User-adjustable: 1h / 6h / 24h / custom
-- No maximum age limit (tokens may be years old)
+Configuration controls
 
----
+Explicitly Out of Scope
 
-### 3.2 Dormant / Quiet State Detection
+Auto-buy / auto-sell
 
-A token is considered **quiet (dormant)** if, during a baseline period before a spike:
+Wallet tracking
 
-- **Price volatility** is minimal
-  - Price change within the baseline window is below a small threshold
-- **Trading volume** is near zero or extremely low
-- **Market cap** shows no meaningful change
+Insider analysis
 
-This condition represents a flat or "serpent-like" chart with no clear trend or volatility.
+Sentiment analysis
 
-Only tokens that transition from a **quiet state to a breakout** are eligible for alerts.
+AI prediction models
 
----
+Multi-chain support
 
-### 3.3 Spike Detection Logic
+3. Supported Blockchain & Ecosystem
 
-The bot must detect sudden price increases using a rolling window.
+Blockchain: Solana
 
-**Spike conditions**:
-- +25% price increase within 5 minutes
-- +50% price increase within 5 minutes
+DEX data sources:
 
-**Additional rules**:
-- Token must have been in a quiet state before the spike
-- Alerts are tiered:
-  - Tier 1: +25%
-  - Tier 2: +50%
-- Cooldown is applied to avoid repeated alerts for the same token and tier
+Jupiter
 
----
+Dexscreener
 
-### 3.4 Telegram Alerts
+Token origins (hard-restricted):
 
-Each alert message must include:
+Pump.fun
 
-- Token name and symbol
-- Price change percentage
-- Timeframe (5 minutes)
-- Current price
-- Market cap
-- Volume increase
-- Liquidity
-- DexScreener link
-- Jupiter link
-- Timestamp
+BONK launchpads
 
-Alerts must be sent immediately once a valid spike is detected.
+Tokens not originating from these sources must never be scanned or alerted.
 
----
+4. Token Universe Definition
+4.1 Source Classification
 
-### 3.5 Telegram Bot Commands
+Each token must belong to exactly one source:
 
-The Telegram bot must support the following commands:
+Source	Definition
+pumpfun	Tokens minted via Pump.fun
+bonk	Tokens launched via BONK-associated launchpads
 
-- `/start` – Start the bot
-- `/status` – Show current configuration
-- `/threshold` – Enable or disable 25% / 50% alerts
-- `/age` – Set minimum token age filter
-- `/pause` – Pause alerting
-- `/resume` – Resume alerting
-- `/help` – Display command help
+Tokens without a verified source are ignored permanently.
 
-All configuration changes must apply immediately without restarting the bot.
+4.2 Token Registry (Required)
 
----
+A persistent registry must exist containing:
 
-## 4. Non-Functional Requirements
+{
+  "mint": "string",
+  "source": "pumpfun | bonk",
+  "created_at": "unix_timestamp",
+  "first_seen": "unix_timestamp",
+  "last_scanned": "unix_timestamp",
+  "last_alerted": "unix_timestamp | null"
+}
 
-### Stability
-- Must run continuously on a VPS
-- Automatic recovery from errors
-- Graceful handling of API failures and rate limits
 
-### Performance
-- Capable of tracking thousands of tokens
-- Uses asynchronous and batched requests
-- Efficient memory usage
+The registry is the only source of truth for what is scanned.
 
-### Maintainability
-- Clear folder structure
-- Modular design
-- Readable logging
+5. Token Age Requirements
+5.1 Minimum Age (Configurable)
 
----
+A token must be at least X hours old before eligibility.
 
-## 5. Technology Stack
+Supported values:
 
-- **Language**: Node.js (JavaScript / TypeScript)
-- **API SDK**: `dexscreener-sdk`
-- **Telegram**: `node-telegram-bot-api`
-- **Environment config**: `dotenv`
-- **Scheduler**: Custom polling loop or cron-based scheduler
+1 hour
 
----
+6 hours
 
-## 6. Step-by-Step Development Plan
+24 hours
 
-### Phase 1: Project Setup
+Default: 1 hour
 
-1. Initialize Node.js project
-2. Install dependencies
-3. Configure environment variables
-4. Create base folder structure
+5.2 Maximum Age
 
-```
-src/
- ├─ bot/
- ├─ detector/
- ├─ services/
- ├─ data/
- ├─ utils/
-```
+No maximum age
 
----
+Tokens may be months or years old
 
-### Phase 2: DexScreener Integration
+6. Market Cap Requirement
 
-1. Integrate `dexscreener-sdk`
-2. Fetch Solana token pairs
-3. Filter Pump and Bonk launchpad tokens
-4. Normalize token data
+Token market cap must be ≤ $100,000 USD
 
----
+Market cap must be evaluated at alert time
 
-### Phase 3: Token Universe Management
+Tokens exceeding this value are skipped
 
-1. Maintain an active list of eligible tokens
-2. Apply market cap and age filters
-3. Continuously update the universe
+7. Inactivity (“Bag / Dead Coin”) Detection
 
----
+A token must exhibit clear inactivity prior to the spike.
 
-### Phase 4: Baseline State Engine
+7.1 Qualifying Inactivity Patterns
 
-1. Store rolling historical snapshots per token
-2. Compute volatility, volume, and mcap changes
-3. Classify tokens as quiet or active
+Flat or near-flat price (“serpent graph”)
 
----
+Minimal volume
 
-### Phase 5: Spike Detection Engine
+No recent volatility
 
-1. Maintain rolling 5-minute price windows
-2. Calculate percentage price change
-3. Check threshold conditions
-4. Validate quiet-to-breakout transition
-5. Trigger alert events
+7.2 Minimum Inactivity Criteria (MVP)
 
----
+Before the 5-minute spike window:
 
-### Phase 6: Telegram Bot Implementation
+Metric	Requirement
+1h volume	< $500
+1h price change	< ±5%
+No 5m candle	> +10%
 
-1. Initialize Telegram bot
-2. Implement commands and configuration handling
-3. Format alert messages
-4. Send alerts in real time
+Tokens failing these checks are considered active and ignored.
 
----
+8. Spike Detection Logic (Core Trigger)
+8.1 Primary Trigger
 
-### Phase 7: Optimization & Safety
+An alert is triggered if:
 
-1. Implement rate-limit protection
-2. Add retry logic and error handling
-3. Optimize polling and batching
-4. Add structured logging
+Price increases ≥ +25%
 
----
+Within the last 5 minutes
 
-### Phase 8: Packaging & Delivery
+After satisfying all filters:
 
-1. Write README documentation
-2. Test on VPS environment
-3. Package project into ZIP file
-4. Final verification and handoff
+Source
 
----
+Age
 
-## 7. Final Result
+Market cap
 
-The final system will be a **production-ready Telegram bot** capable of detecting **early breakout signals in dormant Solana tokens**, fully configurable and optimized for experimentation and future expansion.
+Prior inactivity
 
+8.2 Calculation
+price_change_5m = (price_now - price_5m_ago) / price_5m_ago
+
+
+Trigger condition:
+
+price_change_5m ≥ 0.25
+
+9. Market Data Requirements
+9.1 Required Metrics per Token
+
+Collected via Jupiter and Dexscreener:
+
+Current price
+
+Price 5 minutes ago
+
+Volume (5m, 1h)
+
+Liquidity
+
+Market cap
+
+DEX pair info
+
+9.2 Polling Frequency
+
+Every 10–15 seconds
+
+Must support rolling 5-minute windows
+
+10. Alerting Rules
+10.1 Alert Conditions
+
+An alert must be sent immediately when:
+
+Spike condition is met
+
+Token has not been alerted in the last X minutes (default: 10)
+
+10.2 Alert Output (Telegram)
+
+Each alert must include:
+
+Token name / symbol
+
+Mint address
+
+Source (Pump.fun or BONK)
+
+Token age
+
+Market cap
+
+5-minute price change (%)
+
+Volume spike
+
+Liquidity
+
+Jupiter link
+
+Dexscreener link
+
+11. Spam Control (Minimal but Required)
+
+One alert per token per cooldown window
+
+Ignore tokens with:
+
+Liquidity < $2,000
+
+Ignore duplicate alerts for the same spike
+
+Spam is expected but must remain technically manageable.
+
+12. Configuration Requirements
+
+All of the following must be configurable without code changes:
+
+MIN_TOKEN_AGE_HOURS=1
+PUMP_THRESHOLD_PERCENT=25
+LOOKBACK_MINUTES=5
+MAX_MARKET_CAP=100000
+ALERT_COOLDOWN_MINUTES=10
+
+13. System Behavior Summary
+
+Discover Pump.fun and BONK tokens
+
+Store them in a registry
+
+Enforce age and source restrictions
+
+Poll market data continuously
+
+Detect inactivity → spike transitions
+
+Send Telegram alerts in real time
+
+14. Success Criteria
+
+The system is considered successful if:
+
+It never alerts tokens outside Pump.fun or BONK
+
+It detects dead/bag coins before social media hype
+
+Alerts occur within seconds of the +25% / 5m move
+
+Configuration changes alter behavior without redeploys
+
+15. Future-Ready (Not Required Now)
+
+Additional spike thresholds (+50%, +100%)
+
+Separate channels for Pump.fun vs BONK
+
+Bag-state classification labels
+
+Web dashboard
+
+Historical signal analytics
+
+Final Summary (One Line)
+
+A Solana Telegram bot that monitors only Pump.fun and BONK tokens, filters for old, inactive low-cap coins, and alerts immediately when they spike +25% in 5 minutes.

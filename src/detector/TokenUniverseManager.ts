@@ -17,44 +17,47 @@ export class TokenUniverseManager {
   }
 
   /**
-   * Discover new tokens from Pump, Bonk, and Bags launchpads
+   * Discover new tokens from Pump.fun and BONK launchpads (hard restriction)
    * This searches for pairs that might be from these launchpads
    */
   async discoverTokens(): Promise<string[]> {
     const discoveredTokens: string[] = [];
 
     try {
-      // Search for Pump.fun tokens (common pattern: search for pump-related queries)
-      // Note: This is a heuristic approach. You may need to refine based on actual API responses
-      const pumpSearchTerms = ['pump', 'PUMP'];
-      for (const term of pumpSearchTerms) {
-        try {
-          const pairs = await this.dexScreenerService.searchPairs(term);
-          const eligiblePairs = this.filterEligiblePairs(pairs);
+      // Search for Pump.fun tokens
+      // Note: DexScreener search for "pumpfun" should return Pump.fun tokens
+      // The filterEligiblePairs() will verify via dexId to ensure hard restriction
+      try {
+        const pumpfunPairs = await this.dexScreenerService.searchPairs('pumpfun');
+        const eligiblePairs = this.filterEligiblePairs(pumpfunPairs);
 
-          for (const pair of eligiblePairs) {
-            const address = pair.baseToken.address;
-            if (!this.trackedTokens.has(address)) {
-              discoveredTokens.push(address);
-              this.trackedTokens.add(address);
-            }
+        for (const pair of eligiblePairs) {
+          const address = pair.baseToken.address;
+          // Double-check: ensure source is verified Pump.fun (hard restriction)
+          const source = this.dexScreenerService.getTokenSource(pair);
+          if (source === 'pumpfun' && !this.trackedTokens.has(address)) {
+            discoveredTokens.push(address);
+            this.trackedTokens.add(address);
           }
-
-          // Rate limit protection
-          await this.delay(500);
-        } catch (error) {
-          console.error(`Error searching for ${term}:`, error);
         }
+
+        // Rate limit protection
+        await this.delay(500);
+      } catch (error) {
+        console.error('Error searching for Pump.fun tokens:', error);
       }
 
-      // Search for Bonk tokens
+      // Search for BONK tokens
+      // The filterEligiblePairs() will verify via dexId to ensure hard restriction
       try {
         const bonkPairs = await this.dexScreenerService.searchPairs('bonk');
         const eligiblePairs = this.filterEligiblePairs(bonkPairs);
 
         for (const pair of eligiblePairs) {
           const address = pair.baseToken.address;
-          if (!this.trackedTokens.has(address)) {
+          // Double-check: ensure source is verified BONK (hard restriction)
+          const source = this.dexScreenerService.getTokenSource(pair);
+          if (source === 'bonk' && !this.trackedTokens.has(address)) {
             discoveredTokens.push(address);
             this.trackedTokens.add(address);
           }
@@ -65,22 +68,6 @@ export class TokenUniverseManager {
       } catch (error) {
         console.error('Error searching for BONK tokens:', error);
       }
-
-      // Search for Bags tokens
-      try {
-        const bagsPairs = await this.dexScreenerService.searchPairs('bags');
-        const eligiblePairs = this.filterEligiblePairs(bagsPairs);
-
-        for (const pair of eligiblePairs) {
-          const address = pair.baseToken.address;
-          if (!this.trackedTokens.has(address)) {
-            discoveredTokens.push(address);
-            this.trackedTokens.add(address);
-          }
-        }
-      } catch (error) {
-        console.error('Error searching for BAGS tokens:', error);
-      }
     } catch (error) {
       console.error('Error in discoverTokens:', error);
     }
@@ -90,6 +77,7 @@ export class TokenUniverseManager {
 
   /**
    * Filter pairs based on eligibility criteria
+   * Per requirements: tokens with liquidity < $2,000 must be ignored
    */
   private filterEligiblePairs(pairs: TokenPair[]): TokenPair[] {
     return pairs.filter((pair) => {
@@ -99,7 +87,7 @@ export class TokenUniverseManager {
         return false;
       }
 
-      // Check if from Pump, Bonk, or Bags (heuristic check)
+      // Hard restriction: Only Pump.fun and BONK tokens allowed
       if (!this.dexScreenerService.isFromPumpOrBonk(pair)) {
         return false;
       }
@@ -107,6 +95,12 @@ export class TokenUniverseManager {
       // Check if pair has necessary data
       if (!pair.priceUsd || parseFloat(pair.priceUsd) <= 0) {
         return false;
+      }
+
+      // Spam control: Ignore tokens with liquidity < $2,000 (per requirements section 11)
+      const liquidity = pair.liquidity?.usd || 0;
+      if (liquidity < this.config.minLiquidityUsd) {
+        return false; // Tokens with 0 liquidity or < $2k are ignored
       }
 
       // Check age if pair creation timestamp is available

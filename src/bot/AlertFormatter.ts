@@ -14,7 +14,7 @@ export class AlertFormatter {
   }
 
   /**
-   * Format spike alert for Telegram
+   * Format spike alert for Telegram (per requirements section 10.2)
    */
   formatAlert(alert: SpikeAlert): string {
     const emoji = alert.tier === 'tier50' ? '🚨🚨' : '🚨';
@@ -25,20 +25,36 @@ export class AlertFormatter {
     const jupiterUrl = this.dexScreenerService.getJupiterUrl(alert.tokenAddress);
 
     const timestamp = new Date(alert.timestamp).toLocaleString();
+    
+    // Format token age
+    let ageText = '';
+    if (alert.tokenAgeHours < 24) {
+      ageText = `${alert.tokenAgeHours.toFixed(1)}h`;
+    } else {
+      const ageDays = alert.tokenAgeHours / 24;
+      ageText = `${ageDays.toFixed(1)}d`;
+    }
+
+    // Format source (capitalize first letter)
+    const sourceText = alert.source === 'pumpfun' ? 'Pump.fun' : 'BONK';
 
     return `
 ${emoji} <b>${tierText} DETECTED</b> ${emoji}
 
 🪙 <b>Token:</b> ${alert.baseTokenName} (${alert.baseTokenSymbol})
+📍 <b>Mint:</b> <code>${alert.tokenAddress}</code>
+🏷️ <b>Source:</b> ${sourceText}
+⏰ <b>Age:</b> ${ageText}
+
 💰 <b>Price:</b> $${alert.currentPrice.toFixed(8)}
 📈 <b>Price Change:</b> ${priceChangeSign}${alert.priceChange5m.toFixed(2)}% (5 min)
 
 💵 <b>Market Cap:</b> $${alert.marketCap.toLocaleString()}
 💧 <b>Liquidity:</b> $${alert.liquidity.toLocaleString()}
-📊 <b>Volume (5m):</b> $${alert.volume5m.toLocaleString()}
+📊 <b>Volume Spike (5m):</b> $${alert.volume5m.toLocaleString()}
 
 🔗 <b>Links:</b>
-<a href="${dexScreenerUrl}">DexScreener</a> | <a href="${jupiterUrl}">Jupiter</a>
+<a href="${jupiterUrl}">Jupiter</a> | <a href="${dexScreenerUrl}">DexScreener</a>
 
 ⏰ ${timestamp}
     `.trim();

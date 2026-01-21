@@ -25,6 +25,9 @@ export interface BotConfig {
 
   // Cooldown settings (in milliseconds)
   alertCooldownMs: number; // Cooldown between alerts for same token/tier
+  
+  // Liquidity filter
+  minLiquidityUsd: number; // Minimum liquidity in USD
 }
 
 export class Config {
@@ -37,13 +40,14 @@ export class Config {
       alertThreshold25: process.env.ALERT_THRESHOLD_25 !== 'false',
       alertThreshold50: process.env.ALERT_THRESHOLD_50 !== 'false',
       minTokenAgeHours: parseInt(process.env.MIN_TOKEN_AGE_HOURS || '1', 10),
-      maxMarketCap: parseInt(process.env.MAX_MARKET_CAP || '100000000', 10),
+      maxMarketCap: parseInt(process.env.MAX_MARKET_CAP || '100000', 10), // $100k as per requirements
       isPaused: false,
-      pollingIntervalMs: parseInt(process.env.POLLING_INTERVAL_MS || '10000', 10), // 1 minute default
-      dormantVolatilityThreshold: 5, // Max 5% price change to be considered dormant
-      dormantVolumeThreshold: 1000, // Max $1k volume in baseline period
+      pollingIntervalMs: parseInt(process.env.POLLING_INTERVAL_MS || '12000', 10), // 12 seconds (10-15s range)
+      dormantVolatilityThreshold: 5, // Max ±5% price change to be considered dormant (1h)
+      dormantVolumeThreshold: 500, // Max $500 volume in 1h as per requirements
       baselinePeriodMinutes: 60, // Check last 60 minutes for dormant state
-      alertCooldownMs: 30 * 60 * 1000, // 30 minutes cooldown
+      alertCooldownMs: 10 * 60 * 1000, // 10 minutes cooldown as per requirements
+      minLiquidityUsd: 2000, // Minimum liquidity $2,000 as per requirements
     };
   }
 
@@ -103,6 +107,10 @@ export class Config {
     return this.config.alertCooldownMs;
   }
 
+  get minLiquidityUsd(): number {
+    return this.config.minLiquidityUsd;
+  }
+
   pause(): void {
     this.config.isPaused = true;
   }
@@ -146,9 +154,10 @@ export class Config {
 • Polling Interval: ${this.config.pollingIntervalMs / 1000}s
 
 🔍 Dormant Detection:
-• Volatility Threshold: ${this.config.dormantVolatilityThreshold}%
-• Volume Threshold: $${this.config.dormantVolumeThreshold.toLocaleString()}
+• Volatility Threshold: ±${this.config.dormantVolatilityThreshold}% (1h change)
+• Volume Threshold: $${this.config.dormantVolumeThreshold.toLocaleString()} (1h volume)
 • Baseline Period: ${this.config.baselinePeriodMinutes} minutes
+• Min Liquidity: $${this.config.minLiquidityUsd.toLocaleString()}
 • Alert Cooldown: ${this.config.alertCooldownMs / 60000} minutes
     `.trim();
   }
