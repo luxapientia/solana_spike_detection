@@ -153,10 +153,10 @@ export class DexScreenerService {
   }
 
   /**
-   * Check if a token is from Pump or Bonk launchpad
+   * Check if a token is from Pump, Bonk, or Bags launchpad
    * Uses baseToken information to identify launchpad tokens
    * @param pair - Token pair to check
-   * @returns True if token is from Pump or Bonk
+   * @returns True if token is from Pump, Bonk, or Bags
    */
   isFromPumpOrBonk(pair: TokenPair): boolean {
     const baseToken = pair.baseToken;
@@ -165,28 +165,28 @@ export class DexScreenerService {
       return false;
     }
 
-    // Check baseToken symbol for Pump/Bonk indicators
+    // Check baseToken symbol for Pump/Bonk/Bags indicators
     const symbol = (baseToken.symbol || '').toLowerCase();
-    if (symbol.includes('pump') || symbol.includes('bonk')) {
+    if (symbol.includes('pump') || symbol.includes('bonk') || symbol.includes('bags')) {
       return true;
     }
 
-    // Check baseToken name for Pump/Bonk indicators
+    // Check baseToken name for Pump/Bonk/Bags indicators
     const name = (baseToken.name || '').toLowerCase();
-    if (name.includes('pump') || name.includes('bonk')) {
+    if (name.includes('pump') || name.includes('bonk') || name.includes('bags')) {
       return true;
     }
 
     // Check dexId for launchpad identifiers
     const dexId = (pair.dexId || '').toLowerCase();
-    if (dexId.includes('pump') || dexId.includes('bonk')) {
+    if (dexId.includes('pump') || dexId.includes('bonk') || dexId.includes('bags')) {
       return true;
     }
 
     // Check labels array for launchpad indicators
     if (pair.labels && pair.labels.length > 0) {
       const labelStr = pair.labels.join(' ').toLowerCase();
-      if (labelStr.includes('pump') || labelStr.includes('bonk')) {
+      if (labelStr.includes('pump') || labelStr.includes('bonk') || labelStr.includes('bags')) {
         return true;
       }
     }

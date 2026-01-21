@@ -17,7 +17,7 @@ export class TokenUniverseManager {
   }
 
   /**
-   * Discover new tokens from Pump and Bonk launchpads
+   * Discover new tokens from Pump, Bonk, and Bags launchpads
    * This searches for pairs that might be from these launchpads
    */
   async discoverTokens(): Promise<string[]> {
@@ -59,8 +59,27 @@ export class TokenUniverseManager {
             this.trackedTokens.add(address);
           }
         }
+
+        // Rate limit protection
+        await this.delay(500);
       } catch (error) {
         console.error('Error searching for BONK tokens:', error);
+      }
+
+      // Search for Bags tokens
+      try {
+        const bagsPairs = await this.dexScreenerService.searchPairs('bags');
+        const eligiblePairs = this.filterEligiblePairs(bagsPairs);
+
+        for (const pair of eligiblePairs) {
+          const address = pair.baseToken.address;
+          if (!this.trackedTokens.has(address)) {
+            discoveredTokens.push(address);
+            this.trackedTokens.add(address);
+          }
+        }
+      } catch (error) {
+        console.error('Error searching for BAGS tokens:', error);
       }
     } catch (error) {
       console.error('Error in discoverTokens:', error);
@@ -80,7 +99,7 @@ export class TokenUniverseManager {
         return false;
       }
 
-      // Check if from Pump or Bonk (heuristic check)
+      // Check if from Pump, Bonk, or Bags (heuristic check)
       if (!this.dexScreenerService.isFromPumpOrBonk(pair)) {
         return false;
       }

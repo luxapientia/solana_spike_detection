@@ -187,7 +187,7 @@ export class SpikeDetectionService {
   }
 
   /**
-   * Discover new tokens from Pump and Bonk launchpads
+   * Discover new tokens from Pump, Bonk, and Bags launchpads
    */
   private async discoverTokens(): Promise<void> {
     console.log('🔍 Discovering new tokens...');
