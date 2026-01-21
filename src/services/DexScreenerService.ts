@@ -159,41 +159,11 @@ export class DexScreenerService {
    * @returns True if token is from Pump, Bonk, or Bags
    */
   isFromPumpOrBonk(pair: TokenPair): boolean {
-    const baseToken = pair.baseToken;
-    
-    if (!baseToken) {
-      return false;
-    }
-
-    // Check baseToken symbol for Pump/Bonk/Bags indicators
-    const symbol = (baseToken.symbol || '').toLowerCase();
-    if (symbol.includes('pump') || symbol.includes('bonk') || symbol.includes('bags')) {
-      return true;
-    }
-
-    // Check baseToken name for Pump/Bonk/Bags indicators
-    const name = (baseToken.name || '').toLowerCase();
-    if (name.includes('pump') || name.includes('bonk') || name.includes('bags')) {
-      return true;
-    }
-
     // Check dexId for launchpad identifiers
     const dexId = (pair.dexId || '').toLowerCase();
     if (dexId.includes('pump') || dexId.includes('bonk') || dexId.includes('bags')) {
       return true;
     }
-
-    // Check labels array for launchpad indicators
-    if (pair.labels && pair.labels.length > 0) {
-      const labelStr = pair.labels.join(' ').toLowerCase();
-      if (labelStr.includes('pump') || labelStr.includes('bonk') || labelStr.includes('bags')) {
-        return true;
-      }
-    }
-
-    // Note: Pump.fun tokens might have specific address patterns
-    // If you have known Pump.fun or Bonk token address patterns, add them here
-    // Example: Check if baseToken.address matches known patterns
     
     return false;
   }

@@ -109,10 +109,6 @@ export class TokenUniverseManager {
         return false;
       }
 
-      if (!pair.liquidity || pair.liquidity.usd === 0) {
-        return false;
-      }
-
       // Check age if pair creation timestamp is available
       if (pair.pairCreatedAt) {
         const ageHours = (Date.now() - pair.pairCreatedAt) / (1000 * 60 * 60);

@@ -320,81 +320,131 @@ Use /help to see all available commands.
         }
       }
 
-      // Format the message
-      let message = `📊 <b>Tracked Tokens (${tokenInfo.length})</b>\n\n`;
-
       if (tokenInfo.length === 0) {
-        message += 'No token data available at the moment.';
-      } else {
-        // Sort by market cap (highest first)
-        tokenInfo.sort((a, b) => b.marketCap - a.marketCap);
-
-        // Telegram message limit is 4096 characters, so we'll limit to first 15 tokens for detailed view
-        const displayLimit = 15;
-        const tokensToShow = tokenInfo.slice(0, displayLimit);
-
-        tokensToShow.forEach((token, index) => {
-          const priceChange5mEmoji = token.priceChange5m >= 0 ? '📈' : '📉';
-          const priceChange1hEmoji = token.priceChange1h >= 0 ? '📈' : '📉';
-          const priceChange24hEmoji = token.priceChange24h >= 0 ? '📈' : '📉';
-          const priceChange5mSign = token.priceChange5m >= 0 ? '+' : '';
-          const priceChange1hSign = token.priceChange1h >= 0 ? '+' : '';
-          const priceChange24hSign = token.priceChange24h >= 0 ? '+' : '';
-          const shortAddress = `${token.address.substring(0, 8)}...${token.address.substring(token.address.length - 6)}`;
-
-          // Calculate token age if available
-          let ageInfo = '';
-          if (token.pairCreatedAt) {
-            const ageHours = (Date.now() - token.pairCreatedAt) / (1000 * 60 * 60);
-            if (ageHours < 24) {
-              ageInfo = `⏰ Age: ${ageHours.toFixed(1)}h`;
-            } else {
-              const ageDays = ageHours / 24;
-              ageInfo = `⏰ Age: ${ageDays.toFixed(1)}d`;
-            }
+        await this.bot.editMessageText(
+          '📭 No token data available at the moment.',
+          {
+            chat_id: chatId,
+            message_id: loadingMsg.message_id,
           }
+        );
+        return;
+      }
 
-          message += `━━━━━━━━━━━━━━━━━━━━\n`;
-          message += `${index + 1}. <b>${token.symbol}</b> - ${token.name}\n`;
-          message += `━━━━━━━━━━━━━━━━━━━━\n`;
-          message += `🌐 <b>Chain:</b> ${token.chainId.toUpperCase()}\n`;
-          message += `🏪 <b>DEX:</b> ${token.dexId}\n`;
-          message += `💰 <b>Price:</b> $${token.price.toFixed(8)}\n`;
-          message += `💵 <b>Market Cap:</b> $${token.marketCap.toLocaleString()}\n`;
-          message += `💧 <b>Liquidity:</b> $${token.liquidity.toLocaleString()}\n\n`;
-          
-          message += `<b>Price Changes:</b>\n`;
-          message += `  ${priceChange5mEmoji} 5m:  ${priceChange5mSign}${token.priceChange5m.toFixed(2)}%\n`;
-          message += `  ${priceChange1hEmoji} 1h:  ${priceChange1hSign}${token.priceChange1h.toFixed(2)}%\n`;
-          message += `  ${priceChange24hEmoji} 24h: ${priceChange24hSign}${token.priceChange24h.toFixed(2)}%\n\n`;
-          
-          message += `<b>Volume:</b>\n`;
-          message += `  📊 5m:  $${token.volume5m.toLocaleString()}\n`;
-          message += `  📊 24h: $${token.volume24h.toLocaleString()}\n\n`;
-          
-          if (ageInfo) {
-            message += `${ageInfo}\n`;
+      // Sort by market cap (highest first)
+      tokenInfo.sort((a, b) => b.marketCap - a.marketCap);
+
+      // Telegram message limit is 4096 characters
+      // We'll split into multiple messages if needed
+      const MAX_MESSAGE_LENGTH = 4000; // Leave some buffer
+      
+      // Delete the loading message first
+      try {
+        await this.bot.deleteMessage(chatId, loadingMsg.message_id);
+      } catch (error) {
+        // Ignore if message already deleted or doesn't exist
+      }
+
+      // Format and send messages in chunks
+      let messageIndex = 0;
+      let currentMessage = '';
+      
+      for (let i = 0; i < tokenInfo.length; i++) {
+        const token = tokenInfo[i];
+        const priceChange5mEmoji = token.priceChange5m >= 0 ? '📈' : '📉';
+        const priceChange1hEmoji = token.priceChange1h >= 0 ? '📈' : '📉';
+        const priceChange24hEmoji = token.priceChange24h >= 0 ? '📈' : '📉';
+        const priceChange5mSign = token.priceChange5m >= 0 ? '+' : '';
+        const priceChange1hSign = token.priceChange1h >= 0 ? '+' : '';
+        const priceChange24hSign = token.priceChange24h >= 0 ? '+' : '';
+        const shortAddress = `${token.address.substring(0, 8)}...${token.address.substring(token.address.length - 6)}`;
+
+        // Calculate token age if available
+        let ageInfo = '';
+        if (token.pairCreatedAt) {
+          const ageHours = (Date.now() - token.pairCreatedAt) / (1000 * 60 * 60);
+          if (ageHours < 24) {
+            ageInfo = `⏰ Age: ${ageHours.toFixed(1)}h`;
+          } else {
+            const ageDays = ageHours / 24;
+            ageInfo = `⏰ Age: ${ageDays.toFixed(1)}d`;
           }
-          
-          message += `<b>Links:</b>\n`;
-          message += `  🔗 <a href="${token.url}">DexScreener</a>\n`;
-          message += `  🪐 <a href="${token.jupiterUrl}">Jupiter</a>\n`;
-          message += `  📍 <code>${shortAddress}</code>\n\n`;
-        });
+        }
 
-        if (tokenInfo.length > displayLimit) {
-          message += `\n... and ${tokenInfo.length - displayLimit} more tokens\n`;
-          message += `(Showing top ${displayLimit} by market cap)`;
+        // Build token block
+        let tokenBlock = `━━━━━━━━━━━━━━━━━━━━\n`;
+        tokenBlock += `${i + 1}. <b>${token.symbol}</b> - ${token.name}\n`;
+        tokenBlock += `━━━━━━━━━━━━━━━━━━━━\n`;
+        tokenBlock += `🌐 <b>Chain:</b> ${token.chainId.toUpperCase()}\n`;
+        tokenBlock += `🏪 <b>DEX:</b> ${token.dexId}\n`;
+        tokenBlock += `💰 <b>Price:</b> $${token.price.toFixed(8)}\n`;
+        tokenBlock += `💵 <b>Market Cap:</b> $${token.marketCap.toLocaleString()}\n`;
+        tokenBlock += `💧 <b>Liquidity:</b> $${token.liquidity.toLocaleString()}\n\n`;
+        
+        tokenBlock += `<b>Price Changes:</b>\n`;
+        tokenBlock += `  ${priceChange5mEmoji} 5m:  ${priceChange5mSign}${token.priceChange5m.toFixed(2)}%\n`;
+        tokenBlock += `  ${priceChange1hEmoji} 1h:  ${priceChange1hSign}${token.priceChange1h.toFixed(2)}%\n`;
+        tokenBlock += `  ${priceChange24hEmoji} 24h: ${priceChange24hSign}${token.priceChange24h.toFixed(2)}%\n\n`;
+        
+        tokenBlock += `<b>Volume:</b>\n`;
+        tokenBlock += `  📊 5m:  $${token.volume5m.toLocaleString()}\n`;
+        tokenBlock += `  📊 24h: $${token.volume24h.toLocaleString()}\n\n`;
+        
+        if (ageInfo) {
+          tokenBlock += `${ageInfo}\n`;
+        }
+        
+        tokenBlock += `<b>Links:</b>\n`;
+        tokenBlock += `  🔗 <a href="${token.url}">DexScreener</a>\n`;
+        tokenBlock += `  🪐 <a href="${token.jupiterUrl}">Jupiter</a>\n`;
+        tokenBlock += `  📍 <code>${shortAddress}</code>\n\n`;
+
+        // Check if adding this token would exceed the limit
+        const header = messageIndex === 0 
+          ? `📊 <b>Tracked Tokens (${tokenInfo.length})</b>\n\n`
+          : `📊 <b>Tracked Tokens (${tokenInfo.length})</b> - Page ${messageIndex + 1}\n\n`;
+        
+        const testMessage = messageIndex === 0 
+          ? header + currentMessage + tokenBlock
+          : header + currentMessage + tokenBlock;
+
+        if (testMessage.length > MAX_MESSAGE_LENGTH && currentMessage.length > 0) {
+          // Send current message and start a new one
+          const messageToSend = messageIndex === 0
+            ? `📊 <b>Tracked Tokens (${tokenInfo.length})</b>\n\n${currentMessage.trim()}`
+            : `📊 <b>Tracked Tokens (${tokenInfo.length})</b> - Page ${messageIndex + 1}\n\n${currentMessage.trim()}`;
+          
+          await this.bot.sendMessage(chatId, messageToSend, {
+            parse_mode: 'HTML',
+            disable_web_page_preview: false,
+          });
+          
+          // Small delay between messages
+          await this.delay(300);
+          
+          // Start new message
+          currentMessage = tokenBlock;
+          messageIndex++;
+        } else {
+          // Add token to current message
+          if (currentMessage === '') {
+            currentMessage = header;
+          }
+          currentMessage += tokenBlock;
         }
       }
 
-      // Edit the loading message with the results
-      await this.bot.editMessageText(message, {
-        chat_id: chatId,
-        message_id: loadingMsg.message_id,
-        parse_mode: 'HTML',
-        disable_web_page_preview: false,
-      });
+      // Send remaining message
+      if (currentMessage.trim().length > 0) {
+        const messageToSend = messageIndex === 0
+          ? currentMessage.trim()
+          : `📊 <b>Tracked Tokens (${tokenInfo.length})</b> - Page ${messageIndex + 1}\n\n${currentMessage.replace(/^📊.*?\n\n/, '').trim()}`;
+        
+        await this.bot.sendMessage(chatId, messageToSend, {
+          parse_mode: 'HTML',
+          disable_web_page_preview: false,
+        });
+      }
     } catch (error: any) {
       console.error('Error in handleTokensCommand:', error);
       await this.bot.editMessageText(
