@@ -1,0 +1,32 @@
+{
+  "name": "solana-dormant-token-spike-detector",
+  "version": "1.0.0",
+  "description": "Telegram bot that detects sudden price breakouts in dormant Solana tokens",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "watch": "tsc --watch"
+  },
+  "keywords": [
+    "solana",
+    "telegram",
+    "bot",
+    "crypto",
+    "trading"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "node-telegram-bot-api": "^0.64.0",
+    "dotenv": "^16.3.1",
+    "dexscreener-sdk": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/node-telegram-bot-api": "^0.64.0",
+    "typescript": "^5.3.3",
+    "ts-node": "^10.9.2"
+  }
+}
